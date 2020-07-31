@@ -1,0 +1,6 @@
+{
+    "programmer": "ArduinoISP",
+    "board": "arduino:avr:uno",
+    "port": "COM3",
+    "sketch": "Master_Dev_Firmware.ino"
+}
