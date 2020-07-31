@@ -1,0 +1,6 @@
+{
+    "programmer": "ArduinoISP",
+    "board": "arduino:avr:uno",
+    "port": "COM3",
+    "sketch": "ArducamSSD1306-master\\Arducam_ssd1306_128x64_I2C\\Arducam_ssd1306_128x64_I2C.ino"
+}

@@ -52,10 +52,6 @@ void loop() {
   if (checkKeypad) {
     displayKeypad(checkKeypad);
   }
-
-  if(!digitalRead(btnPin)) {
-    Serial.println("BUTTON!!!");
-  }
 }
 
 void initializeDisplay(void) {
