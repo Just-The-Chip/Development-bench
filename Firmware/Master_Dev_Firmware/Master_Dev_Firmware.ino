@@ -39,7 +39,7 @@ byte btnPin = 12;
 Encoder myEncoder = Encoder(pinA, pinB, btnPin, &displayEncoderCW, &displayEncoderCCW, &displayEncoderButton);
 
 void setup() {
-	Serial.begin(115200);
+	Serial.begin(115200);  //This baud rate required for the LCD
   // SSD1306 Init
   initializeDisplay();
 }
@@ -82,7 +82,7 @@ void displayEncoderCW(void) {
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0);
-  display.print("Encoder Clockwise");
+  display.print("EncoderCW");
   display.setTextSize(3);
   display.setCursor(40,30);
   display.println(">");
@@ -93,7 +93,7 @@ void displayEncoderCCW(void) {
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0);
-  display.print("Encoder CounterClockwise");
+  display.print("EncoderCCW");
   display.setTextSize(3);
   display.setCursor(40,30);
   display.println("<");
@@ -104,9 +104,9 @@ void displayEncoderButton(void) {
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0);
-  display.print("Button =");
+  display.print("Button");
   display.setTextSize(3);
-  display.setCursor(40,30);
-  display.println("Pressed");
+  display.setCursor(20,30);
+  display.println("Press");
   display.display();
 }

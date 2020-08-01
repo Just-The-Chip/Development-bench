@@ -17,9 +17,9 @@ const byte buttonDebounce = 200;                                        // Debou
 unsigned long buttonLastPressed = millis();                             // Last time the encoder button was pressed in milliseconds.
 
 //  These variables are TRUE when their respetive events are detected:
-bool EnAtrig = true;    // EnA is active low
-bool EnBtrig = true;    // EnB is active low
-bool btnTrig = true;    // btn is active low
+bool EnAtrig = false;
+bool EnBtrig = false;
+bool btnTrig = false;
 
 Encoder::Encoder(byte EnApin, byte EnBpin, byte btnPin, void (*CWcallback) (void), void (*CCWcallback) (void), void (*buttonCallback) (void)) {
     pinMode(EnApin, INPUT);
@@ -38,15 +38,15 @@ Encoder::Encoder(byte EnApin, byte EnBpin, byte btnPin, void (*CWcallback) (void
 }
 
 void Encoder::checkEncoder() {
-    EnAtrig = digitalRead(_EnApin);
-    EnBtrig = digitalRead(_EnBpin);
-    btnTrig = digitalRead(_btnPin);
+    EnAtrig = digitalRead(!_EnApin);  // Is true when EnA is active (pin is active low)
+    EnBtrig = digitalRead(!_EnBpin);  // Is true when EnB is active (pin is active low)
+    btnTrig = digitalRead(!_btnPin);  // Is true when btn is active (pin is active low)
 
-    if (!EnAtrig || !EnBtrig) {         // if either EnA or EnB is low, record time and handle accordingly
+    if (EnAtrig || EnBtrig) {         // if either EnA or EnB is active, record time and handle accordingly
         encoderTriggerTime = micros();
         handleEncoder();
     }
-    if (!btnTrig || !buttonLastState) { // if buttonLastState is low, keep checking button until it goes hi again (is no longer being pressed)
+    if (btnTrig) { // if buttonLastState is active, keep checking button until it goes inactive again (is no longer being pressed)
         handleEncoderPress();
     }
 }
@@ -72,12 +72,12 @@ byte Encoder::sampleChannel(byte channel, byte sampleQuantity) {
 void Encoder::handleEncoderPress() {
     bool state = sampleChannel(_btnPin, 10);                                                 // sample 10 times
 
-    if (!buttonLastState && state && (millis() > (buttonLastPressed + buttonDebounce))) {   // Button is active low, execute when button goes back to high (no longer pressed)
+    if (buttonLastState && !state && (millis() > (buttonLastPressed + buttonDebounce))) {   // if button was just released and debounce time has elapsed, execute
         _btnPtr();
         buttonLastPressed = millis();
     }
-
-    buttonLastState = state;
+    
+    buttonLastState = sampleChannel(_btnPin, 10);
 }
 
 // Adds elements to the sample buffers and advances the buffer index.  The index is used to ensure FIFO for elements added to the buffer.
@@ -239,11 +239,12 @@ void Encoder::handleEncoder() {
         // Resets state machine upon completion of this block.
         // Updates rotation visual.
         if (encoderState == 4) {
-            if (bFirst) {                               //Counter clockwise
-                _CCWptr();
-            }
-            else {                                      //Clockwise
+            if (bFirst) {                               //Clockwise
                 _CWptr();
+            }
+            else {                                      //Counter clockwise
+                
+                _CCWptr();
             }
             stateChange(0);
             break;
