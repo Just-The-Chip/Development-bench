@@ -1,112 +1,89 @@
+#include <avr/io.h>
+#include <avr/interrupt.h>
 
-// Libraryies for LCD
-#include <ArducamSSD1306.h>    // Modification of Adafruit_SSD1306 for ESP8266 compatibility
-#include <Adafruit_GFX.h>   // Needs a little change in original Adafruit library (See README.txt file)
-#include <Wire.h>           // For I2C comm, but needed for not getting compile error
-// Library for Keypad
-#include "Keypad.h"
-// Library for encoder and future hardware
-#include "Hardware.h"
+byte slaveEventPins = 2;                                  // Represents Pins 2-6, 3-6 called by loops
+volatile bool slaveInterrupt = false;                     // Is set to true by ISR
+volatile unsigned long lastInterruptTime = micros();      // Is set to the current time when the ISR executes.  Is used to, "debounce" the ISR. 
+byte currentSlaveEvent = 0;                               // Stores events from the slave.  A value of 0 means there was no event.
 
-// Definitions for LCD
-/*
-HardWare I2C pins for LCD on Arduino Uno
-A4   SDA
-A5   SCL
-*/
-#define OLED_RESET  16  // Pin 15 -RESET digital signal
-ArducamSSD1306 display(OLED_RESET); // FOR I2C
+// Pins 2-6 used to read events from slave
 
-// Definitions for Keypad
-const byte ROWS = 4; //four rows
-const byte COLS = 4; //four columns
-char hexaKeys[ROWS][COLS] = {
-  {1,2,3,4},    //Cannot use ASCII 0 because it is NULL character
-  {5,6,7,8},
-  {9,10,11,12},
-  {13,14,15,16}
+const char *slaveEvents[] = {
+  "None",
+  "S1",
+  "S2",
+  "S3",
+  "S4",
+  "S5",
+  "S6",
+  "S7",
+  "S8",
+  "S9",
+  "S10",
+  "S11",
+  "S12",
+  "S13",
+  "S14",
+  "S15",
+  "S16",
+  "enCW",
+  "enCCW",
+  "enBtn"
 };
-char *myKeys[] = {"S1","S2","S3","S4","S5","S6","S7","S8","S9","S10","S11","S12","S13","S14","S15","S16"}; //names of buttons on my keypad
-byte rowPins[ROWS] = {2, 3, 4, 5}; //connect to the row pinouts of the keypad
-byte colPins[COLS] = {9, 8, 7, 6}; //connect to the column pinouts of the keypad
-//initialize an instance of class NewKeypad
-Keypad myKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS);
 
-// Definitions for Encoder
-byte pinA = 10;
-byte pinB = 11;
-byte btnPin = 12;
-Encoder myEncoder = Encoder(pinA, pinB, btnPin, &displayEncoderCW, &displayEncoderCCW, &displayEncoderButton);
-
-void setup() {
-	Serial.begin(115200);  //This baud rate required for the LCD
-  // SSD1306 Init
-  initializeDisplay();
-}
-
-
-void loop() {
-  byte checkKeypad = myKeypad.getKey();
-  myEncoder.checkEncoder();
-
-  if (checkKeypad) {
-    displayKeypad(checkKeypad);
+void setup()  {
+  Serial.begin(256000);
+  // Configure pins 2-6 as inputs with interrupts and debounce timers
+  for (byte i = 0; i < 5; i++) {
+    pinMode(i + slaveEventPins, INPUT);
+    attachInterrupt(digitalPinToInterrupt(i + slaveEventPins), interruptRoutine, RISING);
   }
 }
 
-void initializeDisplay(void) {
-  display.begin();  // Switch OLED
-  // Initialize the display with some text
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setTextColor(WHITE);
-  display.setCursor(20,0);
-  display.println("Bitch");
-  display.print("Lasagnia");
-  display.display();
-  display.setTextSize(1);
+void loop() {
+
+  currentSlaveEvent = checkUserEvents();
+
+  if (currentSlaveEvent) {
+    Serial.println(slaveEvents[currentSlaveEvent]);
+  }
+
 }
 
-void displayKeypad(byte key) {
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0,0);
-  display.print("Button =");
-  display.setTextSize(3);
-  display.setCursor(40,30);
-  display.println(myKeys[key - 1]);
-  display.display();
+// This is the Interrupt Serive Routine (ISR) for user events that are transmitted from the slave device
+void interruptRoutine () {
+
+  if (micros() >= lastInterruptTime + 2000) {
+    slaveInterrupt = true;
+  }
+
+  lastInterruptTime = micros();
 }
 
-void displayEncoderCW(void) {
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0,0);
-  display.print("EncoderCW");
-  display.setTextSize(3);
-  display.setCursor(40,30);
-  display.println(">");
-  display.display();
+// Reads the slave pins and returns the event ID
+byte getSlaveEvent (void) {
+  byte eventNum = 0;
+  
+  for (byte i = 0; i < 5; i++) {
+    bitWrite(eventNum, i, digitalRead(i + slaveEventPins));
+  }
+
+  return eventNum;
 }
 
-void displayEncoderCCW(void) {
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0,0);
-  display.print("EncoderCCW");
-  display.setTextSize(3);
-  display.setCursor(40,30);
-  display.println("<");
-  display.display();
-}
+// Checks the ISR flag and gets the event ID if it is true.  Returns the event ID.
+byte checkUserEvents (void) {
+  byte event = 0;
 
-void displayEncoderButton(void) {
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0,0);
-  display.print("Button");
-  display.setTextSize(3);
-  display.setCursor(20,30);
-  display.println("Press");
-  display.display();
+  cli();  // Disable global interrupts to protect ISR variables during this operation
+
+  // Read slave event N microseconds after interrupt to give all slave pins time to set
+  if (slaveInterrupt && (micros() > (lastInterruptTime + 50))) {
+    event = getSlaveEvent();
+    slaveInterrupt = false;
+
+  }
+  sei();  // enable interrupts globally
+
+  return event;
 }

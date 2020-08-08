@@ -1,38 +1,58 @@
 /*
-  Hardware.h - Library for Nerd_Night[] hardware.
+  slaveHardware.h - Library for Development Bench slave device.
 */
 
 #include "Arduino.h"
 
-#ifndef Hardware_h
-#define Hardware_h
+// Library for Keypad
+#include "Keypad.h"
+
+#ifndef slaveHardware_h
+#define slaveHardware_h
 
 #define  samplesPerMs 40                                                // How many encoder samples to capture per millisecond.
 #define  sampleTime 0.00025                                             // Samples time in seconds.
 #define sampleBufferSize (byte) (samplesPerMs * (sampleTime * 1000))    // Size of the sample buffer for each encoder channel.
 
+enum userEvent {
+  None,
+  S1,
+  S2,
+  S3,
+  S4,
+  S5,
+  S6,
+  S7,
+  S8,
+  S9,
+  S10,
+  S11,
+  S12,
+  S13,
+  S14,
+  S15,
+  S16,
+  enCW,
+  enCCW,
+  enBtn
+};
+
 /*
   Encoder - class for handling the rotary encoder.
-  Initialize the encoder with the two channel pins and the button pin assignments,
-  along with callbacks for clockwise and counter-clockwise rotation, and the button press.
+  Initialize the encoder with the two channel pins and the button pin assignments
   Place checkEncoder(); in your program loop to periodically check the encoder.
   Encoder events are not buffered or queued.
   If they are not checked when they happen, they are lost.
 */
 class Encoder {
     public:
-        Encoder(byte EnApin, byte EnBpin, byte btnPin, void (*CWcallback) (void), void (*CCWcallback) (void), void (*buttonCallback) (void));
-        void checkEncoder();
+        Encoder(byte EnApin, byte EnBpin, byte btnPin);
+        userEvent checkEncoder(void);
     private:
         // Encoder pin assignments:
         byte _EnApin;
         byte _EnBpin;
         byte _btnPin;
-
-        // Callback pointers
-        void (*_CWptr) (void);
-        void (*_CCWptr) (void);
-        void (*_btnPtr) (void);
 
         // Variables for the rotary encoder:
         bool samplesB[sampleBufferSize];
@@ -55,12 +75,12 @@ class Encoder {
 
         void initializeBuffer(bool buffer[]);
         byte sampleChannel(byte channel, byte sampleQuantity);
-        void handleEncoderPress();
+        userEvent handleEncoderPress();
         void elementsToBuffer (bool EnB, bool EnA);
         bool allTrue (bool samples[]);
         bool anyTrue (bool samples[]);
         void stateChange(byte stateNumber);
-        void handleEncoder();
+        userEvent handleEncoder(void);
 };
 
 #endif

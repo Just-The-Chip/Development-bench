@@ -1,5 +1,5 @@
 #include "Arduino.h"
-#include "Hardware.h"
+#include "slaveHardware.h"
 
 // Variables for the rotary encoder:
 const int sampleDwelluS ((0.001 / samplesPerMs) * 1000000);             // Wait time between samples in microseconds to free up processor for other things.
@@ -13,7 +13,7 @@ unsigned long encoderTriggerTime = micros();                            // Time 
 
 // Variables specifically for the encoder button:
 bool buttonLastState = false;                                           // Contains the previous state of the encoder button.  Used to execute code on release of the button.
-const byte buttonDebounce = 200;                                        // Debounce time for the encoder button in milliseconds.
+const byte buttonDebounce = 300;                                        // Debounce time for the encoder button in milliseconds.
 unsigned long buttonLastPressed = millis();                             // Last time the encoder button was pressed in milliseconds.
 
 //  These variables are TRUE when their respetive events are detected:
@@ -21,7 +21,7 @@ bool EnAtrig = false;
 bool EnBtrig = false;
 bool btnTrig = false;
 
-Encoder::Encoder(byte EnApin, byte EnBpin, byte btnPin, void (*CWcallback) (void), void (*CCWcallback) (void), void (*buttonCallback) (void)) {
+Encoder::Encoder(byte EnApin, byte EnBpin, byte btnPin) {
     pinMode(EnApin, INPUT);
     pinMode(EnBpin, INPUT);
     pinMode(btnPin, INPUT);
@@ -29,26 +29,26 @@ Encoder::Encoder(byte EnApin, byte EnBpin, byte btnPin, void (*CWcallback) (void
     _EnBpin = EnBpin;
     _btnPin = btnPin;
 
-    _CWptr = CWcallback;
-    _CCWptr = CCWcallback;
-    _btnPtr = buttonCallback;
-
     initializeBuffer(samplesB);
     initializeBuffer(samplesA);
 }
 
-void Encoder::checkEncoder() {
-    EnAtrig = digitalRead(!_EnApin);  // Is true when EnA is active (pin is active low)
-    EnBtrig = digitalRead(!_EnBpin);  // Is true when EnB is active (pin is active low)
-    btnTrig = digitalRead(!_btnPin);  // Is true when btn is active (pin is active low)
+userEvent Encoder::checkEncoder(void) {
+    EnAtrig = !digitalRead(_EnApin);  // Is true when Encoder channel A is active (pin is active low)
+    EnBtrig = !digitalRead(_EnBpin);  // Is true when Encoder channel B is active (pin is active low)
+    btnTrig = !digitalRead(_btnPin);  // Is true when Encoder button is active (pin is active low)
+
+    userEvent result = None;
 
     if (EnAtrig || EnBtrig) {         // if either EnA or EnB is active, record time and handle accordingly
         encoderTriggerTime = micros();
-        handleEncoder();
+        result = handleEncoder();
     }
-    if (btnTrig) { // if buttonLastState is active, keep checking button until it goes inactive again (is no longer being pressed)
-        handleEncoderPress();
+    if (btnTrig || buttonLastState) {
+        result = handleEncoderPress();
     }
+
+    return result;
 }
 
 // Initializes all elements of buffer to true
@@ -63,21 +63,26 @@ byte Encoder::sampleChannel(byte channel, byte sampleQuantity) {
     float sample = 0;                               // Stores IO samples from encoder button.
 
     for(byte i = 0; i < sampleQuantity; i++) {      // Get samples
-        sample = sample + digitalRead(channel);     // add samples together to get average value
+        sample = sample + !digitalRead(channel);     // add samples together to get average value
     }
     return (byte) round(sample / sampleQuantity);
 }
 
 // Executes code when the encoder button is pressed.
-void Encoder::handleEncoderPress() {
+userEvent Encoder::handleEncoderPress() {
     bool state = sampleChannel(_btnPin, 10);                                                 // sample 10 times
+    Serial.print(state);
+    Serial.println(" ");
+    userEvent result = None;
 
     if (buttonLastState && !state && (millis() > (buttonLastPressed + buttonDebounce))) {   // if button was just released and debounce time has elapsed, execute
-        _btnPtr();
+        result = enBtn;
         buttonLastPressed = millis();
+        Serial.println("btnExecuted");
     }
     
-    buttonLastState = sampleChannel(_btnPin, 10);
+    buttonLastState = state;
+    return result;
 }
 
 // Adds elements to the sample buffers and advances the buffer index.  The index is used to ensure FIFO for elements added to the buffer.
@@ -121,7 +126,7 @@ void Encoder::stateChange(byte stateNumber) {
 }
 
 // Handles the rotary input of the encoder.
-void Encoder::handleEncoder() { 
+userEvent Encoder::handleEncoder(void) { 
 
     // Encoder state variables:
     bool stateB = true;                     // State of encoder channel B (filtered). Logic is made to match that of the encoder.
@@ -129,7 +134,7 @@ void Encoder::handleEncoder() {
     bool bFirst = false;                    // Indicates if encoder channel B went low first.
 
     if (micros() <= (stateTime + 1500)) {   // Adds debounce to encoder rotation detection.
-        return;
+        return None;
     }
 
     // This is the state machine for trtacking encoder state changes.
@@ -167,7 +172,7 @@ void Encoder::handleEncoder() {
         if (encoderState == 0) {
             if (micros() >= (encoderTriggerTime + 3000)){
                 stateChange(0);
-                break;
+                return None;
             }
         }
         //////////////////////////////////////////////////////// State 1 - One channel low: ////////////////////////////////////////////////////////
@@ -176,15 +181,15 @@ void Encoder::handleEncoder() {
         if (encoderState == 1) {
             if (micros() >= (stateTime + 200000)) {      // Timeout Reset (seconds)
                 stateChange(0);
-                break;
+                return None;
             }
             else if (bFirst && stateB) {                // Unexpected channel B Reset
                 stateChange(0);
-                break;
+                return None;
             }
             else if (!bFirst && stateA) {               // Unexpected channel A Reset
                 stateChange(0);
-                break;
+                return None;
             }
             else if (!stateB && !stateA) {              // Advance state machine 
                 stateChange(2);
@@ -196,7 +201,7 @@ void Encoder::handleEncoder() {
         if (encoderState == 2) {
             if (micros() >= (stateTime + 110000)) {     // Timeout Reset (seconds)
                 stateChange(0);
-                break;
+                return None;
             }
             else if (stateA && stateB) {                // Unexpected both channels go back high. Not sure why this happens, but skipping to state 4 improves recognition.
                 stateChange(4);
@@ -220,7 +225,7 @@ void Encoder::handleEncoder() {
         if (encoderState == 3) {
             if (micros() >= (stateTime + 40000)) {      // Timeout Reset (seconds)
                 stateChange(0);
-                break;
+                return None;
             }
             else if (bFirst && !stateB) {               // Unexpected channel Reset B
                 stateChange(2);
@@ -239,15 +244,13 @@ void Encoder::handleEncoder() {
         // Resets state machine upon completion of this block.
         // Updates rotation visual.
         if (encoderState == 4) {
+            stateChange(0);
             if (bFirst) {                               //Clockwise
-                _CWptr();
+                return enCW;
             }
             else {                                      //Counter clockwise
-                
-                _CCWptr();
+                return enCCW;
             }
-            stateChange(0);
-            break;
         }
     }
 }

@@ -1,4 +1,6 @@
 {
     "programmer": "ArduinoISP",
-    "board": "arduino:avr:uno"
+    "board": "arduino:avr:uno",
+    "sketch": "Slave_Dev_Firmware/Slave_Dev_Firmware.ino",
+    "port": "COM3"
 }
