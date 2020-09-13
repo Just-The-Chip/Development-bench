@@ -25,6 +25,10 @@ Encoder myEncoder = Encoder(pinA, pinB, btnPin);
 
 uint8_t eventPins[] = {A0, A1, A2, A3, A4};  // Pins used to signal events to master
 
+//Definitions for LED
+byte LEDpin = 13;
+unsigned long lastEventTime = millis();
+
 void setup() {
 	Serial.begin(115200);
 
@@ -32,19 +36,28 @@ void setup() {
     pinMode(eventPins[i], OUTPUT);
     digitalWrite(eventPins[i], LOW);
   }
+
+  pinMode(LEDpin, OUTPUT);
+  digitalWrite(LEDpin, LOW);
 }
 
 
 void loop() {
   byte keyPadEvent = myKeypad.getKey();
   userEvent encoderEvent = myEncoder.checkEncoder();
+  unsigned long now = millis();
 
-  if (keyPadEvent && (millis() >= (lastKeyEventTime + 100))) {
+  if (keyPadEvent && ((now - lastKeyEventTime) >= 100)) {
+    setLED();
     sendEvent(keyPadEvent);
-    lastKeyEventTime = millis();
+    lastKeyEventTime = now;
   }
   if (encoderEvent) {
+    setLED();
     sendEvent(encoderEvent);
+  }
+  if ((now - lastEventTime) >= 25) {
+    digitalWrite(LEDpin, LOW);
   }
 }
 
@@ -55,7 +68,14 @@ void sendEvent(userEvent event) {
   }
   delay(1);
   for(byte i = 0; i < 5; i++) {
+
     digitalWrite(eventPins[i], LOW);
   }
 
+}
+
+// Turns on the LED and records the current time
+void setLED (void) {
+  digitalWrite(LEDpin, HIGH);
+  lastEventTime = millis();
 }

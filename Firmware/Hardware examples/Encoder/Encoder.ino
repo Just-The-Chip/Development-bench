@@ -116,7 +116,7 @@ byte sampleChannel(byte channel, byte sampleQuantity) {
 void handleEncoderPress() {
     bool state = sampleChannel(btnPin, 10);                                                 // sample 10 times
 
-    if (!buttonLastState && state && (millis() > (buttonLastPressed + buttonDebounce))) {   // Button is active low, execute when button goes back to high (no longer pressed)
+    if (!buttonLastState && state && ((millis() - buttonLastPressed) >= buttonDebounce)) {   // Button is active low, execute when button goes back to high (no longer pressed)
         buttonLastPressed = millis();
         DEBUG_PRINTLN("---------ENCODER BUTTON PRESSED---------");
     }
@@ -174,7 +174,7 @@ void handleEncoder() {
     bool stateA = true;                     // State of encoder channel A (filtered). Logic is made to match that of the encoder.
     bool bFirst = false;                    // Indicates if encoder channel B went low first.
 
-    if (micros() <= (stateTime + 1500)) {   // Adds debounce to encoder rotation detection.
+    if ((micros() - stateTime) >= 1500) {   // Adds debounce to encoder rotation detection.
         return;
     }
 
@@ -184,7 +184,7 @@ void handleEncoder() {
         // This first block alwayse executes.
         // It takes samples and updates the encoder channels filtered values every time it executes.
         // Advances state machine when either encoder channels buffer reads all false.
-        if (micros() >= lastSampleTime + sampleDwelluS) {   // This 'if' samples both encoder channels 'samplesPerMs' times a millisecond.
+        if ((micros() - lastSampleTime) >= sampleDwelluS) {   // This 'if' samples both encoder channels 'samplesPerMs' times a millisecond.
             lastSampleTime = micros();
             elementsToBuffer(digitalRead(EnBpin), digitalRead(EnApin));
             if (allTrue(samplesB)) {                        // Updates 'stateB' continously
@@ -211,7 +211,7 @@ void handleEncoder() {
         //////////////////////////////////////////////////////// State 0 - Idle: ////////////////////////////////////////////////////////
         // Exits callback if [time] elapses.
         if (encoderState == 0) {
-            if (micros() >= (encoderTriggerTime + 3000)){
+            if ((micros() - encoderTriggerTime) >= 3000){
                 stateChange(0);
                 break;
             }
@@ -220,7 +220,7 @@ void handleEncoder() {
         // Resets state machine if timeout elapses. Goes back to previous state if the encoder channel that went low first goes high again.
         // Advances state machine if both encoder channels filtered logic are low at the same time.
         if (encoderState == 1) {
-            if (micros() >= (stateTime + 200000)) {      // Timeout Reset (seconds)
+            if ((micros() - stateTime) >= 200000) {      // Timeout Reset (seconds)
                 stateChange(0);
                 break;
             }
@@ -240,7 +240,7 @@ void handleEncoder() {
         // Resets state machine if timeout elapses. Goes back to previous state if wrong encoder channel goes high first.
         // Advances state machine if the correct channel goes high.
         if (encoderState == 2) {
-            if (micros() >= (stateTime + 110000)) {     // Timeout Reset (seconds)
+            if ((micros() - stateTime) >= 110000) {     // Timeout Reset (seconds)
                 stateChange(0);
                 break;
             }
@@ -264,7 +264,7 @@ void handleEncoder() {
         // Resets state machine if timeout elapses. Goes back to previous state if encoder channel that just went high goes low again.
         // Advances state machine if a single sample reads high in the expected encoder channels buffer.
         if (encoderState == 3) {
-            if (micros() >= (stateTime + 40000)) {      // Timeout Reset (seconds)
+            if ((micros() - stateTime) >= 40000) {      // Timeout Reset (seconds)
                 stateChange(0);
                 break;
             }
